@@ -1,0 +1,43 @@
+(ns cmr.aurora.config
+  "Contains functions for retrieving Aurora Postgres connection configuration from environment variables"
+  (:require [cmr.common.config :as cfg :refer [defconfig]]
+            [cmr.aurora.connection :as conn]))
+
+(defconfig aurora-cluster
+  "Aurora cluster name"
+  {:default "cmr-aurora-cluster"})
+
+(defconfig postgres-db-name
+  "Aurora database name"
+  {:default "cmrcdb"})
+
+(defconfig db-url-primary
+  "Primary db endpoint (for writes and reads)"
+  {:default "localhost"})
+
+(defconfig db-url-secondary
+  "Secondary db url (for reads only)
+   Note that for local development this is the same as db-url-primary since there is no local Aurora cluster mock-up."
+  {:default "localhost"})
+
+(defn db-connection-str
+  "Returns the connection string for the given postgres db endpoint"
+  [host]
+  (str "jdbc:aws-wrapper:postgresql://" host ":5432/" postgres-db-name))
+
+(defconfig master-db-user
+  "Postgres database master user"
+  {:default "postgres"})
+
+(defconfig master-db-password
+  "Postgres database master password"
+  {:default "admin"}) ;; TODO -- remove me
+
+(defn sys-dba-db-spec
+  []
+  (conn/db-spec
+    "pg-sys-dba-connection-pool"
+    (db-url-primary)
+    (master-db-user)
+    (master-db-password)
+    (postgres-db-name)))

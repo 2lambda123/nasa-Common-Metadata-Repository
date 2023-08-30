@@ -10,14 +10,14 @@
 
 (defmethod collection-column-sql false
   [provider]
-  "id NUMBER,
+  "id INTEGER,
   concept_id VARCHAR(255) NOT NULL,
   native_id VARCHAR(1030) NOT NULL,
-  metadata BLOB NOT NULL,
+  metadata BYTEA NOT NULL,
   format VARCHAR(255) NOT NULL,
   revision_id INTEGER DEFAULT 1 NOT NULL,
-  revision_date TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
-  deleted INTEGER DEFAULT 0 NOT NULL,
+  revision_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  deleted BOOLEAN DEFAULT FALSE NOT NULL,
   short_name VARCHAR(85) NOT NULL,
   version_id VARCHAR(80),
   entry_id VARCHAR(255) NOT NULL,
@@ -25,7 +25,7 @@
   delete_time TIMESTAMP WITH TIME ZONE,
   user_id VARCHAR(30),
   transaction_id INTEGER DEFAULT 0 NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL")
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL")
 
 (defmethod collection-column-sql true
   [provider]
@@ -41,22 +41,14 @@
 (defmethod collection-constraint-sql false
   [provider table-name]
   (format (str "CONSTRAINT %s_pk PRIMARY KEY (id), "
-
+               
                ;; Unique constraint on native id and revision id
                "CONSTRAINT %s_con_rev
-               UNIQUE (native_id, revision_id)
-               USING INDEX (create unique index %s_ucr_i
-               ON %s(native_id, revision_id)), "
+               UNIQUE (native_id, revision_id), "
 
                ;; Unique constraint on concept id and revision id
                "CONSTRAINT %s_cid_rev
-               UNIQUE (concept_id, revision_id)
-               USING INDEX (create unique index %s_cri
-               ON %s(concept_id, revision_id))")
-          table-name
-          table-name
-          table-name
-          table-name
+               UNIQUE (concept_id, revision_id)")
           table-name
           table-name
           table-name))
@@ -65,21 +57,13 @@
   [provider table-name]
   (format (str "CONSTRAINT %s_pk PRIMARY KEY (id), "
 
-            ;; Unique constraint on provider id, native id and revision id
-            "CONSTRAINT %s_con_rev
-            UNIQUE (provider_id, native_id, revision_id)
-            USING INDEX (create unique index %s_ucr_i
-            ON %s(provider_id, native_id, revision_id)), "
+               ;; Unique constraint on provider id, native id and revision id
+               "CONSTRAINT %s_con_rev
+               UNIQUE (provider_id, native_id, revision_id), "
 
-            ;; Unique constraint on concept id and revision id
-            "CONSTRAINT %s_cid_rev
-            UNIQUE (concept_id, revision_id)
-            USING INDEX (create unique index %s_cri
-            ON %s(concept_id, revision_id))")
-          table-name
-          table-name
-          table-name
-          table-name
+               ;; Unique constraint on concept id and revision id
+               "CONSTRAINT %s_cid_rev
+               UNIQUE (concept_id, revision_id)")
           table-name
           table-name
           table-name))
@@ -130,4 +114,5 @@
                                 table-name
                                 table-name))
   (j/db-do-commands db (format "CREATE INDEX %s_c_i ON %s (created_at)"
-                               table-name)))
+                               table-name
+                               table-name))) ;;how was this working?

@@ -21,6 +21,8 @@
    [cmr.metadata-db.services.jobs :as mdb-jobs]
    [cmr.oracle.config :as oracle-config]
    [cmr.oracle.connection :as oracle]
+   [cmr.aurora.config :as aurora-config]
+   [cmr.aurora.connection :as aurora]
    [cmr.transmit.config :as transmit-config]))
 
 ;; Design based on http://stuartsierra.com/2013/09/15/lifecycle-composition and related posts
@@ -37,14 +39,26 @@
   "App logging level"
   {:default "info"})
 
+;; below is workaround because regular component start for aurora db is not working
+(def db-atom (atom nil))
+
+(defn db
+  "Lazily connects to the database and caches it"
+  [connection-pool-name]
+  (when-not @db-atom
+    (reset! db-atom (lifecycle/start
+                     (aurora/create-db (config/db-spec connection-pool-name)) nil)))
+  @db-atom)
+
 (defn create-system
   "Returns a new instance of the whole application."
   ([]
    (create-system "metadata-db"))
   ([connection-pool-name]
-   (let [sys {:db (assoc (oracle/create-db (config/db-spec connection-pool-name))
-                         :result-set-fetch-size
-                         (config/result-set-fetch-size))
+   (let [sys {;; :db (assoc (aurora/create-db (config/db-spec connection-pool-name)) ;; BUG -- not starting correctly
+              ;;           :result-set-fetch-size
+              ;;           (config/result-set-fetch-size))
+              :db (db connection-pool-name)
               :log (log/create-logger-with-log-level (log-level))
               :web (web/create-web-server (transmit-config/metadata-db-port) routes/make-api)
               :nrepl (nrepl/create-nrepl-if-configured (config/metadata-db-nrepl-port))
