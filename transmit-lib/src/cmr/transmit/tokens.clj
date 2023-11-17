@@ -3,6 +3,7 @@
   (:require
    [buddy.core.keys :as buddy-keys]
    [buddy.sign.jwt :as jwt]
+   [buddy.sign.jws :as jws]
    [cheshire.core :as json]
    [clj-time.core :as t]
    [clj-http.client :as client]
@@ -17,14 +18,17 @@
    [cmr.transmit.connection :as conn]
    [cmr.transmit.launchpad-user-cache :as launchpad-user-cache]))
 
-(defn verify-edl-token-locally
-  "Uses the EDL public key to verify jwt tokens locally."
+(defn verify-json-web-token-locally
+  "Uses a known public JWKS to verify JWT tokens locally."
   [token]
   (try
-    (let [public-key (buddy-keys/jwk->public-key (json/parse-string (transmit-config/edl-public-key) true))
-          bearer-stripped-token (string/replace token #"Bearer\W+" "")
+    (let [bearer-stripped-token (string/replace token #"Bearer\W+" "")
+          token-kid (get (jws/decode-header bearer-stripped-token) :kid)
+          jwks-list (json/parse-string (transmit-config/jwt-web-key-set) true)
+          matching-key (first (filter #(= token-kid (get % :kid)) jwks-list))
+          public-key (buddy-keys/jwk->public-key matching-key)
           decrypted-token (jwt/unsign bearer-stripped-token public-key {:alg :rs256})]
-      (:uid decrypted-token))
+      ((keyword transmit-config/jwt-user-id-claim) decrypted-token))
     (catch clojure.lang.ExceptionInfo ex
       (let [error-data (ex-data ex)]
         (cond
@@ -123,14 +127,14 @@
      [status parsed body])))
 
 (defn get-user-id
-  "Get the user-id from EDL or Launchpad for the given token"
+  "Get the user identifier from Launchpad or extract from the JWT bearer token"
   [context token]
   (if (transmit-config/echo-system-token? token)
     ;; Short circuit a lookup when we already know who this is.
     (transmit-config/echo-system-username)
     (if (and (common-util/is-jwt-token? token)
-             (transmit-config/local-edl-verification))
-      (verify-edl-token-locally token)
+             (transmit-config/local-jwt-verification))
+      (verify-json-web-token-locally token)
       (if (common-util/is-launchpad-token? token)
         (:uid (launchpad-user-cache/get-launchpad-user context token))
         ;; Legacy services has been shut down, we still use a mock for tests, we will leave this here and handle the 301.
